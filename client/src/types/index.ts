@@ -19,6 +19,7 @@ export interface PostWithUser extends Post {
   user: User;
   likes: number;
   comments: number;
+  shares?: number;
   userHasLiked: boolean;
 }
 
@@ -39,6 +40,19 @@ export interface Comment {
 
 export interface CommentWithUser extends Comment {
   user: User;
+}
+
+export interface Share {
+  id: number;
+  userId: number;
+  postId: number;
+  comment?: string;
+  createdAt: Date;
+}
+
+export interface ShareWithUser extends Share {
+  user: User;
+  post: PostWithUser;
 }
 
 export interface Friend {

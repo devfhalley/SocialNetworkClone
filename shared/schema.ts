@@ -75,6 +75,20 @@ export const insertCommentSchema = createInsertSchema(comments).pick({
   content: true,
 });
 
+export const shares = pgTable("shares", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  postId: integer("post_id").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertShareSchema = createInsertSchema(shares).pick({
+  userId: true,
+  postId: true,
+  comment: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
@@ -89,3 +103,6 @@ export type Like = typeof likes.$inferSelect;
 
 export type InsertComment = z.infer<typeof insertCommentSchema>;
 export type Comment = typeof comments.$inferSelect;
+
+export type InsertShare = z.infer<typeof insertShareSchema>;
+export type Share = typeof shares.$inferSelect;

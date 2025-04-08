@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { Globe, MoreHorizontal, ThumbsUp, MessageSquare, Share, Heart } from "lucide-react";
+import { Globe, MoreHorizontal, ThumbsUp, MessageSquare, Share as ShareIcon, Heart, Smile, X } from "lucide-react";
 import { PostWithUser } from "@/types";
 import Comment from "./Comment";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { apiRequest } from "@/lib/queryClient";
 import { Link } from "wouter";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogClose } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 interface PostProps {
   post: PostWithUser;
@@ -18,6 +21,8 @@ interface PostProps {
 const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps) => {
   const [commentText, setCommentText] = useState("");
   const [isLiked, setIsLiked] = useState(post.userHasLiked);
+  const [shareDialogOpen, setShareDialogOpen] = useState(false);
+  const [shareComment, setShareComment] = useState("");
   
   const { data: comments, isLoading: isLoadingComments } = useQuery({
     queryKey: [`/api/posts/${post.id}/comments`],
@@ -26,6 +31,10 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
   
   const { data: currentUser } = useQuery({
     queryKey: [`/api/users/${currentUserId}`],
+  });
+
+  const { data: shares, isLoading: isLoadingShares } = useQuery({
+    queryKey: [`/api/posts/${post.id}/shares`],
   });
 
   const likeMutation = useMutation({
@@ -49,6 +58,7 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
     onSuccess: () => {
       setIsLiked(!isLiked);
       queryClient.invalidateQueries({ queryKey: [`/api/posts/${post.id}/likes`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
     }
   });
 
@@ -63,6 +73,23 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
     onSuccess: () => {
       setCommentText("");
       queryClient.invalidateQueries({ queryKey: [`/api/posts/${post.id}/comments`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
+    }
+  });
+
+  const shareMutation = useMutation({
+    mutationFn: async (comment: string) => {
+      return await apiRequest('POST', '/api/shares', {
+        userId: currentUserId,
+        postId: post.id,
+        comment
+      });
+    },
+    onSuccess: () => {
+      setShareComment("");
+      setShareDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: [`/api/posts/${post.id}/shares`] });
+      queryClient.invalidateQueries({ queryKey: ['/api/posts'] });
     }
   });
 
@@ -72,6 +99,16 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
 
   const handleComment = () => {
     onToggleComments();
+  };
+
+  const handleShare = () => {
+    setShareDialogOpen(true);
+  };
+
+  const submitShare = () => {
+    if (shareComment.trim() || true) { // Allow empty comments when sharing
+      shareMutation.mutate(shareComment);
+    }
   };
 
   const submitComment = (e: React.FormEvent) => {
@@ -88,6 +125,8 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
       return "recently";
     }
   };
+
+  const shareCount = shares?.length || post.shares || 0;
 
   return (
     <div className="bg-white rounded-lg shadow mb-4">
@@ -142,7 +181,7 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
           </div>
           <div className="flex space-x-3">
             <span>{post.comments} comments</span>
-            <span>12 shares</span>
+            <span>{shareCount} shares</span>
           </div>
         </div>
         <div className="flex justify-between pt-2">
@@ -165,8 +204,11 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
             <MessageSquare className="mr-1 inline" size={16} />
             Comment
           </button>
-          <button className="flex-1 py-2 font-medium text-[#65676B] hover:bg-[#F0F2F5] rounded-md">
-            <Share className="mr-1 inline" size={16} />
+          <button 
+            className="flex-1 py-2 font-medium text-[#65676B] hover:bg-[#F0F2F5] rounded-md"
+            onClick={handleShare}
+          >
+            <ShareIcon className="mr-1 inline" size={16} />
             Share
           </button>
         </div>
@@ -219,6 +261,75 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
           </div>
         )}
       </div>
+
+      {/* Share Dialog */}
+      <Dialog open={shareDialogOpen} onOpenChange={setShareDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex justify-between items-center">
+              Share Post
+              <DialogClose asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
+                  <X size={16} />
+                </Button>
+              </DialogClose>
+            </DialogTitle>
+            <DialogDescription>
+              Share this post with your friends
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex items-start space-x-3">
+              {currentUser && (
+                <img 
+                  src={currentUser.profilePicture} 
+                  alt={currentUser.fullName} 
+                  className="w-10 h-10 rounded-full mt-1" 
+                />
+              )}
+              <div className="flex-1">
+                {currentUser && (
+                  <p className="font-medium">{currentUser.fullName}</p>
+                )}
+                <Textarea 
+                  placeholder="What's on your mind?"
+                  value={shareComment}
+                  onChange={(e) => setShareComment(e.target.value)}
+                  className="min-h-24 mt-2"
+                />
+              </div>
+            </div>
+            <div className="bg-[#F0F2F5] rounded-lg p-3 flex items-start space-x-3">
+              <img 
+                src={post.user.profilePicture} 
+                alt={post.user.fullName} 
+                className="w-10 h-10 rounded-full"
+              />
+              <div>
+                <p className="font-medium">{post.user.fullName}</p>
+                <p className="text-xs text-[#65676B]">{formatDate(post.createdAt)}</p>
+                <p className="mt-1 text-sm line-clamp-2">{post.content}</p>
+                {post.imageUrl && (
+                  <div className="mt-2 bg-gray-100 h-28 rounded overflow-hidden">
+                    <img 
+                      src={post.imageUrl} 
+                      alt="Post" 
+                      className="w-full h-full object-cover" 
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <Button 
+              className="w-full bg-[#1877F2] hover:bg-[#166FE5]" 
+              onClick={submitShare}
+              disabled={shareMutation.isPending}
+            >
+              {shareMutation.isPending ? "Sharing..." : "Share Now"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

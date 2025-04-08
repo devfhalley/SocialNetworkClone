@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema, insertPostSchema, insertLikeSchema, insertCommentSchema, insertFriendSchema } from "@shared/schema";
+import { insertUserSchema, insertPostSchema, insertLikeSchema, insertCommentSchema, insertFriendSchema, insertShareSchema } from "@shared/schema";
 import { z } from "zod";
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -239,6 +239,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.json(updatedFriendRequest);
     } catch (error) {
       return res.status(500).json({ message: "Failed to update friend request" });
+    }
+  });
+
+  // Share routes
+  app.get("/api/posts/:id/shares", async (req, res) => {
+    try {
+      const postId = parseInt(req.params.id);
+      if (isNaN(postId)) {
+        return res.status(400).json({ message: "Invalid post ID" });
+      }
+      
+      const shares = await storage.getShares(postId);
+      return res.json(shares);
+    } catch (error) {
+      return res.status(500).json({ message: "Failed to fetch shares" });
+    }
+  });
+
+  app.get("/api/users/:id/shares", async (req, res) => {
+    try {
+      const userId = parseInt(req.params.id);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+      
+      const shares = await storage.getUserShares(userId);
+      return res.json(shares);
+    } catch (error) {
+      return res.status(500).json({ message: "Failed to fetch user shares" });
+    }
+  });
+
+  app.post("/api/shares", async (req, res) => {
+    try {
+      const shareData = insertShareSchema.parse(req.body);
+      const newShare = await storage.createShare(shareData);
+      return res.status(201).json(newShare);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Invalid share data", errors: error.errors });
+      }
+      return res.status(500).json({ message: "Failed to create share" });
     }
   });
 

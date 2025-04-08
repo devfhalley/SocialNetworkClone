@@ -13,7 +13,10 @@ import {
   InsertComment,
   friends,
   Friend,
-  InsertFriend
+  InsertFriend,
+  shares,
+  Share,
+  InsertShare
 } from "@shared/schema";
 
 export interface IStorage {
@@ -44,6 +47,11 @@ export interface IStorage {
   // Comment operations
   getComments(postId: number): Promise<Comment[]>;
   createComment(comment: InsertComment): Promise<Comment>;
+  
+  // Share operations
+  getShares(postId: number): Promise<Share[]>;
+  getUserShares(userId: number): Promise<Share[]>;
+  createShare(share: InsertShare): Promise<Share>;
 }
 
 export class MemStorage implements IStorage {
@@ -52,12 +60,14 @@ export class MemStorage implements IStorage {
   private likes: Map<number, Like>;
   private comments: Map<number, Comment>;
   private friends: Map<number, Friend>;
+  private shares: Map<number, Share>;
   
   private currentUserId: number;
   private currentPostId: number;
   private currentLikeId: number;
   private currentCommentId: number;
   private currentFriendId: number;
+  private currentShareId: number;
 
   constructor() {
     this.users = new Map();
@@ -65,12 +75,14 @@ export class MemStorage implements IStorage {
     this.likes = new Map();
     this.comments = new Map();
     this.friends = new Map();
+    this.shares = new Map();
     
     this.currentUserId = 1;
     this.currentPostId = 1;
     this.currentLikeId = 1;
     this.currentCommentId = 1;
     this.currentFriendId = 1;
+    this.currentShareId = 1;
     
     // Seed some initial data
     this.seedData();
@@ -307,6 +319,34 @@ export class MemStorage implements IStorage {
     };
     this.comments.set(id, comment);
     return comment;
+  }
+
+  // Share operations
+  async getShares(postId: number): Promise<Share[]> {
+    return Array.from(this.shares.values())
+      .filter(share => share.postId === postId)
+      .sort((a, b) => 
+        (new Date(b.createdAt as Date)).getTime() - (new Date(a.createdAt as Date)).getTime()
+      );
+  }
+
+  async getUserShares(userId: number): Promise<Share[]> {
+    return Array.from(this.shares.values())
+      .filter(share => share.userId === userId)
+      .sort((a, b) => 
+        (new Date(b.createdAt as Date)).getTime() - (new Date(a.createdAt as Date)).getTime()
+      );
+  }
+
+  async createShare(insertShare: InsertShare): Promise<Share> {
+    const id = this.currentShareId++;
+    const share: Share = { 
+      ...insertShare, 
+      id,
+      createdAt: new Date() 
+    };
+    this.shares.set(id, share);
+    return share;
   }
 }
 
