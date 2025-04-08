@@ -18,6 +18,8 @@ import {
   Share,
   InsertShare
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, or, desc, asc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -350,4 +352,175 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User operations
+  async getUser(id: number): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    // Ensure all fields are properly formatted for database
+    const userToInsert = {
+      ...insertUser,
+      profilePicture: insertUser.profilePicture ?? null,
+      coverPicture: insertUser.coverPicture ?? null,
+      bio: insertUser.bio ?? null
+    };
+    
+    const [user] = await db.insert(users).values(userToInsert).returning();
+    return user;
+  }
+
+  // Friend operations
+  async getFriendRequests(userId: number): Promise<Friend[]> {
+    return await db.select()
+      .from(friends)
+      .where(and(
+        eq(friends.friendId, userId),
+        eq(friends.status, "pending")
+      ));
+  }
+
+  async getFriends(userId: number): Promise<Friend[]> {
+    return await db.select()
+      .from(friends)
+      .where(and(
+        or(eq(friends.userId, userId), eq(friends.friendId, userId)),
+        eq(friends.status, "accepted")
+      ));
+  }
+
+  async sendFriendRequest(request: InsertFriend): Promise<Friend> {
+    const [friendRequest] = await db.insert(friends).values(request).returning();
+    return friendRequest;
+  }
+
+  async updateFriendRequest(id: number, status: string): Promise<Friend | undefined> {
+    const [updatedRequest] = await db
+      .update(friends)
+      .set({ status })
+      .where(eq(friends.id, id))
+      .returning();
+    return updatedRequest;
+  }
+
+  // Post operations
+  async getPost(id: number): Promise<Post | undefined> {
+    const [post] = await db.select().from(posts).where(eq(posts.id, id));
+    return post;
+  }
+
+  async getAllPosts(): Promise<Post[]> {
+    return await db.select()
+      .from(posts)
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async getUserPosts(userId: number): Promise<Post[]> {
+    return await db.select()
+      .from(posts)
+      .where(eq(posts.userId, userId))
+      .orderBy(desc(posts.createdAt));
+  }
+
+  async createPost(insertPost: InsertPost): Promise<Post> {
+    // Ensure all fields are properly formatted for database
+    const postToInsert = {
+      ...insertPost,
+      imageUrl: insertPost.imageUrl ?? null
+    };
+    
+    const [post] = await db.insert(posts).values(postToInsert).returning();
+    return post;
+  }
+
+  // Like operations
+  async getLikes(postId: number): Promise<Like[]> {
+    return await db.select()
+      .from(likes)
+      .where(eq(likes.postId, postId));
+  }
+
+  async getLike(userId: number, postId: number): Promise<Like | undefined> {
+    const [like] = await db.select()
+      .from(likes)
+      .where(and(
+        eq(likes.userId, userId),
+        eq(likes.postId, postId)
+      ));
+    return like;
+  }
+
+  async createLike(insertLike: InsertLike): Promise<Like> {
+    // Check if the user already liked the post
+    const existingLike = await this.getLike(insertLike.userId, insertLike.postId);
+    if (existingLike) {
+      return existingLike;
+    }
+    
+    // Ensure type field is set
+    const likeToInsert = {
+      ...insertLike,
+      type: insertLike.type ?? "like"
+    };
+    
+    const [like] = await db.insert(likes).values(likeToInsert).returning();
+    return like;
+  }
+
+  async deleteLike(id: number): Promise<void> {
+    await db.delete(likes).where(eq(likes.id, id));
+  }
+
+  // Comment operations
+  async getComments(postId: number): Promise<Comment[]> {
+    return await db.select()
+      .from(comments)
+      .where(eq(comments.postId, postId))
+      .orderBy(asc(comments.createdAt));
+  }
+
+  async createComment(insertComment: InsertComment): Promise<Comment> {
+    const [comment] = await db.insert(comments).values(insertComment).returning();
+    return comment;
+  }
+
+  // Share operations
+  async getShares(postId: number): Promise<Share[]> {
+    return await db.select()
+      .from(shares)
+      .where(eq(shares.postId, postId))
+      .orderBy(desc(shares.createdAt));
+  }
+
+  async getUserShares(userId: number): Promise<Share[]> {
+    return await db.select()
+      .from(shares)
+      .where(eq(shares.userId, userId))
+      .orderBy(desc(shares.createdAt));
+  }
+
+  async createShare(insertShare: InsertShare): Promise<Share> {
+    // Ensure comment field is properly formatted for database
+    const shareToInsert = {
+      ...insertShare,
+      comment: insertShare.comment ?? null
+    };
+    
+    const [share] = await db.insert(shares).values(shareToInsert).returning();
+    return share;
+  }
+}
+
+// Use DatabaseStorage instead of MemStorage
+export const storage = new DatabaseStorage();

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Globe, MoreHorizontal, ThumbsUp, MessageSquare, Share as ShareIcon, Heart, Smile, X } from "lucide-react";
-import { PostWithUser } from "@/types";
+import { PostWithUser, User, CommentWithUser } from "@/types";
 import Comment from "./Comment";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
@@ -24,16 +24,16 @@ const Post = ({ post, currentUserId, showComments, onToggleComments }: PostProps
   const [shareDialogOpen, setShareDialogOpen] = useState(false);
   const [shareComment, setShareComment] = useState("");
   
-  const { data: comments, isLoading: isLoadingComments } = useQuery({
+  const { data: comments = [], isLoading: isLoadingComments } = useQuery<CommentWithUser[]>({
     queryKey: [`/api/posts/${post.id}/comments`],
     enabled: showComments,
   });
   
-  const { data: currentUser } = useQuery({
+  const { data: currentUser } = useQuery<User>({
     queryKey: [`/api/users/${currentUserId}`],
   });
 
-  const { data: shares, isLoading: isLoadingShares } = useQuery({
+  const { data: shares = [], isLoading: isLoadingShares } = useQuery<any[]>({
     queryKey: [`/api/posts/${post.id}/shares`],
   });
 
